@@ -272,6 +272,13 @@ export function* verifyCertificateIssuer({ certificate }) {
   }
 }
 
+function preloadTemplates(certificate) {
+  const rawCert = certificateData(certificate);
+  const selectedTemplateName = get(rawCert, "$template", "default");
+  const selectedTemplate = templates[selectedTemplateName] || templates.default;
+  selectedTemplate.preload();
+}
+
 export function* verifyCertificate({ payload }) {
   yield put({
     type: types.VERIFYING_CERTIFICATE
@@ -279,10 +286,7 @@ export function* verifyCertificate({ payload }) {
   const certificateStores = yield call(loadCertificateContracts, { payload });
   const args = { certificateStores, certificate: payload };
 
-  const rawCert = certificateData(payload);
-  const selectedTemplateName = get(rawCert, "$template", "default");
-  const selectedTemplate = templates[selectedTemplateName] || templates.default;
-  selectedTemplate.preload();
+  preloadTemplates(payload);
 
   const verificationStatuses = yield all([
     call(verifyCertificateHash, args),
