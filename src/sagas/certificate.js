@@ -30,7 +30,6 @@ import fetchIssuers from "../services/issuers";
 import { combinedHash } from "../utils";
 import { ensResolveAddress, getText } from "../services/ens";
 import sendEmail from "../services/email";
-import templates from "../components/CertificateTemplates";
 import { analyticsEvent } from "../components/Analytics";
 
 import { getSelectedWeb3 } from "./application";
@@ -272,22 +271,12 @@ export function* verifyCertificateIssuer({ certificate }) {
   }
 }
 
-function preloadTemplates(certificate) {
-  const rawCert = certificateData(certificate);
-  const selectedTemplateName = get(rawCert, "$template", "default");
-  const selectedTemplate = templates[selectedTemplateName] || templates.default;
-  selectedTemplate.preload();
-}
-
 export function* verifyCertificate({ payload }) {
   yield put({
     type: types.VERIFYING_CERTIFICATE
   });
   const certificateStores = yield call(loadCertificateContracts, { payload });
   const args = { certificateStores, certificate: payload };
-
-  preloadTemplates(payload);
-
   const verificationStatuses = yield all([
     call(verifyCertificateHash, args),
     call(verifyCertificateIssued, args),
