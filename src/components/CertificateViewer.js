@@ -7,7 +7,6 @@ import Modal from "./Modal";
 import images from "./ViewerPageImages";
 
 import { getLogger } from "../utils/logger";
-import { preloadTemplates } from "../services/templatePreload";
 import templates from "./CertificateTemplates";
 
 const { trace } = getLogger("components:CertificateViewer");
@@ -71,12 +70,14 @@ const renderHeaderBlock = props => {
 };
 
 const CertificateViewer = props => {
-  const { certificate, handleObfuscation, document } = props;
+  const { certificate, handleObfuscation } = props;
 
   const renderedHeaderBlock = renderHeaderBlock(props);
-  const SelectedTemplate = preloadTemplates(document);
+  const selectedTemplateName = get(certificate, "$template", "default");
+  const SelectedTemplate = templates[selectedTemplateName] || templates.default;
+
   trace(`Templates Mapping: %o`, templates);
-  // trace(`Selected template: ${selectedTemplateName}`);
+  trace(`Selected template: ${selectedTemplateName}`);
   trace(`Certificate content: %o`, certificate);
 
   const validCertificateContent = (

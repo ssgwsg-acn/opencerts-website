@@ -30,6 +30,7 @@ import fetchIssuers from "../services/issuers";
 import { combinedHash } from "../utils";
 import { ensResolveAddress, getText } from "../services/ens";
 import sendEmail from "../services/email";
+import templates from "../components/CertificateTemplates";
 import { analyticsEvent } from "../components/Analytics";
 
 import { getSelectedWeb3 } from "./application";
