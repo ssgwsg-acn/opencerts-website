@@ -7,7 +7,7 @@ import {
   isEmpty,
   mapKeys
 } from "lodash";
-import { put, all, call, select, takeEvery } from "redux-saga/effects";
+import { put, all, call, select } from "redux-saga/effects";
 import { certificateData, verifySignature } from "@govtechsg/open-certificate";
 import { isValidAddress as isEthereumAddress } from "ethereumjs-util";
 import Router from "next/router";
@@ -16,32 +16,18 @@ import {
   types,
   verifyingCertificateIssuerSuccess,
   verifyingCertificateIssuerFailure,
-  verifyingCertificateRevocationSuccess,
-  verifyingCertificateRevocationFailure,
-  verifyingCertificateIssuedSuccess,
-  verifyingCertificateIssuedFailure,
-  verifyingCertificateHashSuccess,
-  verifyingCertificateHashFailure,
   getCertificate
 } from "../reducers/certificate";
-import { types as applicationTypes } from "../reducers/application";
 import DocumentStoreDefinition from "../services/contracts/DocumentStore.json";
 import fetchIssuers from "../services/issuers";
 import { combinedHash } from "../utils";
 import { ensResolveAddress, getText } from "../services/ens";
 import sendEmail from "../services/email";
-import { analyticsEvent } from "../components/Analytics";
+import templates from "../components/CertificateTemplates";
 
 import { getSelectedWeb3 } from "./application";
 
 const { trace, error } = getLogger("saga:certificate");
-
-const ANALYTICS_VERIFICATION_ERROR_CODE = {
-  ISSUER_IDENTITY: 0,
-  CERTIFICATE_HASH: 1,
-  UNISSUED_CERTIFICATE: 2,
-  REVOKED_CERTIFICATE: 3
-};
 
 export function* loadCertificateContracts({ payload }) {
   try {
@@ -80,15 +66,14 @@ export function* loadCertificateContracts({ payload }) {
 export function* verifyCertificateHash({ certificate }) {
   const verified = verifySignature(certificate);
   if (verified) {
-    yield put(verifyingCertificateHashSuccess());
+    yield put({
+      type: types.VERIFYING_CERTIFICATE_HASH_SUCCESS
+    });
     return true;
   }
-  yield put(
-    verifyingCertificateHashFailure({
-      error: "Certificate data does not match target hash",
-      certificate: certificateData(certificate)
-    })
-  );
+  yield put({
+    type: types.VERIFYING_CERTIFICATE_HASH_FAILURE
+  });
   return false;
 }
 
@@ -102,31 +87,18 @@ export function* verifyCertificateIssued({ certificate, certificateStores }) {
     );
     const isIssued = issuedStatuses.reduce((prev, curr) => prev && curr, true);
     if (!isIssued) throw new Error("Certificate has not been issued");
-    yield put(verifyingCertificateIssuedSuccess());
+    yield put({
+      type: types.VERIFYING_CERTIFICATE_ISSUED_SUCCESS
+    });
     return true;
   } catch (e) {
-    yield put(
-      verifyingCertificateIssuedFailure({
-        certificate: certificateData(certificate),
-        error: e.message
-      })
-    );
+    yield put({
+      type: types.VERIFYING_CERTIFICATE_ISSUED_FAILURE,
+      payload: e.message
+    });
     return false;
   }
 }
-
-export const getIntermediateHashes = (targetHash, proof = []) => {
-  // Returns hash of all intermediate hashes from targetHash to merkleRoot
-  const intermediateHashes = [`0x${targetHash}`];
-
-  proof.reduce((accumulator, currentValue) => {
-    const combined = combinedHash(accumulator, currentValue).toString("hex");
-    intermediateHashes.push(`0x${combined}`);
-    return combined;
-  }, targetHash);
-
-  return intermediateHashes;
-};
 
 export function* verifyCertificateNotRevoked({
   certificate,
@@ -137,10 +109,16 @@ export function* verifyCertificateNotRevoked({
     const proof = get(certificate, "signature.proof", null);
 
     // Checks if certificate and path towards merkle root has been revoked
-    const intermediateHashes = getIntermediateHashes(targetHash, proof);
+    const combinedHashes = [`0x${targetHash}`];
 
-    for (let i = 0; i < intermediateHashes.length; i += 1) {
-      const hash = intermediateHashes[i];
+    proof.reduce((accumulator, currentValue) => {
+      const combined = combinedHash(accumulator, currentValue).toString("hex");
+      combinedHashes.push(`0x${combined}`);
+      return combined;
+    }, targetHash);
+
+    for (let i = 0; i < combinedHashes.length; i += 1) {
+      const hash = combinedHashes[i];
 
       // Check if certificate is revoked on ALL store
       const revokedStatus = yield all(
@@ -154,15 +132,15 @@ export function* verifyCertificateNotRevoked({
         throw new Error(`Certificate has been revoked, revoked hash: ${hash}`);
     }
 
-    yield put(verifyingCertificateRevocationSuccess());
+    yield put({
+      type: types.VERIFYING_CERTIFICATE_REVOCATION_SUCCESS
+    });
     return true;
   } catch (e) {
-    yield put(
-      verifyingCertificateRevocationFailure({
-        certificate: certificateData(certificate),
-        error: e.message
-      })
-    );
+    yield put({
+      type: types.VERIFYING_CERTIFICATE_REVOCATION_FAILURE,
+      payload: e.message
+    });
     return false;
   }
 }
@@ -261,12 +239,7 @@ export function* verifyCertificateIssuer({ certificate }) {
     return combinedIssuerIdentities;
   } catch (e) {
     error(e);
-    yield put(
-      verifyingCertificateIssuerFailure({
-        error: e.message,
-        certificate: certificateData(certificate)
-      })
-    );
+    yield put(verifyingCertificateIssuerFailure(e.message));
     return false;
   }
 }
@@ -326,52 +299,4 @@ export function* networkReset() {
   });
 }
 
-export function* analyticsIssuerFail({ certificate }) {
-  yield analyticsEvent(window, {
-    category: "CERTIFICATE_ERROR",
-    action: get(certificate, "issuers[0].certificateStore"),
-    label: get(certificate, "id"),
-    value: ANALYTICS_VERIFICATION_ERROR_CODE.ISSUER_IDENTITY
-  });
-}
-
-export function* analyticsHashFail({ certificate }) {
-  yield analyticsEvent(window, {
-    category: "CERTIFICATE_ERROR",
-    action: get(certificate, "issuers[0].certificateStore"),
-    label: get(certificate, "id"),
-    value: ANALYTICS_VERIFICATION_ERROR_CODE.CERTIFICATE_HASH
-  });
-}
-
-export function* analyticsIssuedFail({ certificate }) {
-  yield analyticsEvent(window, {
-    category: "CERTIFICATE_ERROR",
-    action: get(certificate, "issuers[0].certificateStore"),
-    label: get(certificate, "id"),
-    value: ANALYTICS_VERIFICATION_ERROR_CODE.UNISSUED_CERTIFICATE
-  });
-}
-
-export function* analyticsRevocationFail({ certificate }) {
-  yield analyticsEvent(window, {
-    category: "CERTIFICATE_ERROR",
-    action: get(certificate, "issuers[0].certificateStore"),
-    label: get(certificate, "id"),
-    value: ANALYTICS_VERIFICATION_ERROR_CODE.REVOKED_CERTIFICATE
-  });
-}
-
-export default [
-  takeEvery(types.UPDATE_CERTIFICATE, verifyCertificate),
-  takeEvery(types.SENDING_CERTIFICATE, sendCertificate),
-  takeEvery(applicationTypes.UPDATE_WEB3, networkReset),
-
-  takeEvery(types.VERIFYING_CERTIFICATE_ISSUER_FAILURE, analyticsIssuerFail),
-  takeEvery(
-    types.VERIFYING_CERTIFICATE_REVOCATION_FAILURE,
-    analyticsRevocationFail
-  ),
-  takeEvery(types.VERIFYING_CERTIFICATE_ISSUED_FAILURE, analyticsIssuedFail),
-  takeEvery(types.VERIFYING_CERTIFICATE_HASH_FAILURE, analyticsHashFail)
-];
+export default loadCertificateContracts;

@@ -76,9 +76,9 @@ describe("event", () => {
     ]);
   });
 
-  it("throws if there is a validation error", () => {
+  it("does not fail if there is an error", () => {
     const win = { ga: stub() };
     const errEvt = { ...evt, value: "STRING" };
-    expect(() => analyticsEvent(win, errEvt)).toThrow();
+    analyticsEvent(win, errEvt);
   });
 });

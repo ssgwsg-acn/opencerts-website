@@ -15,7 +15,7 @@ const ObfuscatableValue = ({ field, value, handleObfuscation, editable }) =>
 
 ObfuscatableValue.propTypes = {
   field: PropTypes.string,
-  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  value: PropTypes.string,
   handleObfuscation: PropTypes.func,
   editable: PropTypes.bool
 };

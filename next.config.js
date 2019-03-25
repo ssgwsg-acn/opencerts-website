@@ -20,8 +20,7 @@ module.exports = withBundleAnalyzer(
           "/registry": { page: "/registry" },
           "/privacy": { page: "/privacy" },
           "/viewer": { page: "/viewer" },
-          "/faq": { page: "/faq" },
-          "/frameless-viewer": { page: "/frameless-viewer" }
+          "/faq": { page: "/faq" }
         };
       },
       // Variables passed to both server and client
