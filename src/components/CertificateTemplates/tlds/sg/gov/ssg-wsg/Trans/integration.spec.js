@@ -12,7 +12,7 @@ const validateTextContent = async (t, component, texts) =>
     async (prev, curr) => t.expect(component.textContent).contains(curr),
     Promise.resolve()
   );
-
+ 
 test("Transcript certificate is rendered correctly", async t => {
   // Uploads certificate via dropzone
   await t.setFilesToUpload("input[type=file]", [Certificate]);
